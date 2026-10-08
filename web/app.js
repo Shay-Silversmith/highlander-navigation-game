@@ -396,11 +396,22 @@ async function startGame() {
     setStatus(null);
     setNav('No game in progress', 'warn');
     $('btn-new').disabled = false;
-    const actions = [{ label: 'Try again', run: startGame, accent: true }];
-    if (['OFF_NETWORK', 'NO_GOAL_AVAILABLE', 'OUTSIDE_COVERAGE'].includes(error.code)) {
-      actions.push({ label: 'Use simulator at demo location', run: () => sim.enable(state.config.demoStart) });
+    const retry = { label: 'Try again', run: startGame };
+    const demo = { label: 'Use Demo mode at the demo location', run: () => sim.enable(state.config.demoStart) };
+    if (error.code === 'OUTSIDE_COVERAGE') {
+      // Retrying cannot help here: the position is fine, the bundled map simply does not reach
+      // it. Demo mode is offered first, and still only starts when the player chooses it.
+      const where = fixAtStart.simulated ? 'This position' : `Your location was found (± ${fmtM(fixAtStart.accuracyM)}), but it`;
+      showBanner(
+        `${where} is outside the offline map, which covers central Tel Aviv only. ` +
+          'Play in Demo mode, or run with OFFLINE=false to use your real location.',
+        [{ ...demo, accent: true }, retry],
+      );
+    } else if (['OFF_NETWORK', 'NO_GOAL_AVAILABLE'].includes(error.code)) {
+      showBanner(error.message, [{ ...retry, accent: true }, demo]);
+    } else {
+      showBanner(error.message, [{ ...retry, accent: true }]);
     }
-    showBanner(error.message, actions);
   }
 }
 
@@ -427,7 +438,7 @@ function applyProgress(progress, fixUsed) {
             `A fix of ± ${fmtM(state.config.maxArrivalAccuracyM)} or better is required.`
         : 'You are inside the goal zone, but the last location fix is too old to confirm it. Waiting for a fresh fix.',
     );
-  } else {
+  } else if (!$('status').textContent.startsWith('No walkable route')) {
     setStatus(null);
   }
 }
@@ -673,6 +684,10 @@ const live = (() => {
   };
 })();
 
+function clearOffRoadNote() {
+  if ($('status').textContent.startsWith('No walkable route')) setStatus(null);
+}
+
 const sim = (() => {
   let position = null;
   let waypoints = [];
@@ -744,18 +759,25 @@ const sim = (() => {
     async walkTo(point) {
       if (state.mode !== 'sim' || state.phase === 'reached' || !position) return;
       const token = ++walkToken;
+      clearOffRoadNote();
       let path = [point];
+      let offRoad = false;
       try {
         const from = { ...position, accuracyM: SIM_ACCURACY_M, simulated: true, ageMs: 0 };
         const { route } = await api('/api/route', { position: from, goal: point });
         if (route.points.length > 1) path = route.points;
       } catch {
-        // keep the straight line
+        offRoad = true;
       }
-      if (token === walkToken && state.mode === 'sim' && state.phase !== 'reached') walk(path);
+      if (token !== walkToken || state.mode !== 'sim' || state.phase === 'reached') return;
+      walk(path);
+      // Say so when the ball is not following streets, so a straight hop is never mistaken
+      // for a permitted walking route.
+      if (offRoad) setTimeout(() => setStatus('No walkable route to that point: the ball is moving off-road in a straight line (simulation only).'), 0);
     },
     followRoute() {
       walkToken++;
+      clearOffRoadNote();
       if (state.mode === 'sim' && state.phase === 'playing' && state.goal) walk([...state.routePoints, state.goal]);
     },
     stopWalking() {
