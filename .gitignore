@@ -1,0 +1,18 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+.cache/
+data/graph-cache/
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+*.docx
+Copy of *.png
+*_preview.png
+.DS_Store
+Thumbs.db
+.aws/

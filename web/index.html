@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>Goal Run — navigation game</title>
+    <link rel="icon" href="/assets/ball.png" />
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="map" aria-label="Game map"></div>
+
+    <aside class="hud" aria-label="Mission">
+      <header class="hud__head">
+        <img src="/assets/ball.png" alt="" width="26" height="26" />
+        <h1>Goal Run</h1>
+        <span id="source-badge" class="badge badge--idle">STANDBY</span>
+        <button id="btn-mute" type="button" class="icon-btn" aria-pressed="false" title="Mute sounds">
+          <span aria-hidden="true">🔊</span><span class="sr-only">Mute sounds</span>
+        </button>
+      </header>
+
+      <div class="hud__main">
+        <div class="metric metric--big">
+          <span id="m-distance">—</span>
+          <label>to goal, by road</label>
+        </div>
+        <div class="metric metric--end">
+          <span id="m-eta">—</span>
+          <label>walking time</label>
+        </div>
+      </div>
+
+      <div class="progress" role="progressbar" aria-label="Route progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="progress-fill" class="progress__fill"></div>
+        <img class="progress__ball" id="progress-ball" src="/assets/ball.png" alt="" />
+      </div>
+      <p id="nav-status" class="nav-status" aria-live="polite">Press Kick off to begin</p>
+
+      <dl class="telemetry">
+        <div>
+          <dt>Location signal</dt>
+          <dd id="m-accuracy" class="signal"><span class="signal__bars" id="signal-bars" data-level="0"><i></i><i></i><i></i></span><span id="m-accuracy-text">—</span></dd>
+        </div>
+        <div><dt>Last fix</dt><dd id="m-age">—</dd></div>
+        <div><dt>Straight line</dt><dd id="m-direct">—</dd></div>
+        <div><dt>Off road</dt><dd id="m-offroad">—</dd></div>
+      </dl>
+
+      <p id="status" class="status" role="status" hidden></p>
+
+      <div class="controls">
+        <div class="segmented" role="group" aria-label="Position source">
+          <button id="btn-live" type="button" aria-pressed="true">Live location</button>
+          <button id="btn-sim" type="button" aria-pressed="false">Demo mode</button>
+        </div>
+        <button id="btn-new" type="button" class="btn" disabled>New goal</button>
+        <button id="btn-center" type="button" class="btn btn--ghost" title="Show player and goal">Fit map</button>
+      </div>
+
+      <div id="sim-panel" class="sim" hidden>
+        <button id="btn-auto" type="button" class="btn btn--accent">Auto-walk the route</button>
+        <p><strong>Simulated position.</strong> Or click anywhere on the map to walk there along the streets. <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> nudge the ball freely.</p>
+      </div>
+    </aside>
+
+    <div id="banner" class="banner" role="alert" hidden>
+      <p id="banner-text"></p>
+      <div id="banner-actions" class="banner__actions"></div>
+    </div>
+
+    <div id="intro" class="overlay">
+      <div class="card" role="dialog" aria-labelledby="intro-title">
+        <img class="card__ball" src="/assets/ball.png" alt="" />
+        <h2 id="intro-title">Goal Run</h2>
+        <p>You are the ball. A goal appears within walking distance, and the shortest route to it is drawn on the map. Get there to score.</p>
+        <button id="btn-kickoff" type="button" class="btn btn--accent btn--lg">Kick off</button>
+        <button id="btn-demo" type="button" class="btn btn--ghost">Demo mode · simulated position</button>
+        <p id="intro-note" class="fine">Kick off asks the browser for this device's location. It is used only to play and is never stored.</p>
+      </div>
+    </div>
+
+    <div id="win" class="overlay overlay--win" hidden>
+      <div class="card" role="dialog" aria-labelledby="win-title">
+        <div class="goalmouth" aria-hidden="true">
+          <img class="goalmouth__ball" src="/assets/ball.png" alt="" />
+        </div>
+        <h2 id="win-title" class="win__title">GOAL!</h2>
+        <p id="win-stats"></p>
+        <p id="win-note" class="fine"></p>
+        <button id="btn-again" type="button" class="btn btn--accent btn--lg">Play again</button>
+      </div>
+    </div>
+
+    <script src="/vendor/leaflet/leaflet.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

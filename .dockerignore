@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+*.docx
+Copy of *.png
+*_preview.png
+coverage
+test-results
+playwright-report
+*.log
+.cache
+data/graph-cache
+docs
+.aws
