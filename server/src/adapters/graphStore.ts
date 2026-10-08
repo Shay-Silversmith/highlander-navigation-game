@@ -4,6 +4,9 @@ import { bboxAround, bboxContains, haversineM, type BBox, type LatLon } from '..
 import { parseRoadGraphData, RoadGraph } from '../core/graph.js';
 import type { RoadGraphProvider } from './overpass.js';
 
+/** How far outside a held graph's box a point may be and still be served from it. */
+const EDGE_SLACK_M = 150;
+
 export interface GraphStoreOptions {
   provider: RoadGraphProvider;
   /** Directory for the on-disk cache; omit to keep graphs in memory only. */
@@ -23,6 +26,9 @@ export interface GraphStoreOptions {
  * Areas are downloaded once and reused: any area whose box contains the requested box is a
  * hit, so walking a few hundred metres does not trigger a new download. Concurrent requests
  * for the same new area share one download.
+ *
+ * When the requested margin cannot be obtained, a held graph that still contains the points is
+ * used rather than failing (see graphCovering).
  */
 export class GraphStore {
   private readonly areas: RoadGraph[] = [];
@@ -52,13 +58,32 @@ export class GraphStore {
     const bbox = bboxAround(center, Math.max(this.options.areaHalfSizeM, span + marginM));
     // Share a download already under way only if its box really covers what is needed here;
     // sharing by "roughly the same place" would hand a larger request an undersized graph.
-    const shared = this.inFlight.find((download) => bboxContains(download.bbox, needed));
-    if (shared) return shared.graph;
-    const download = { bbox, graph: this.download(bbox) };
-    this.inFlight.push(download);
-    const forget = () => void this.inFlight.splice(this.inFlight.indexOf(download), 1);
-    download.graph.then(forget, forget);
-    return download.graph;
+    let pending = this.inFlight.find((download) => bboxContains(download.bbox, needed))?.graph;
+    if (!pending) {
+      const download = { bbox, graph: this.download(bbox) };
+      this.inFlight.push(download);
+      const forget = () => void this.inFlight.splice(this.inFlight.indexOf(download), 1);
+      download.graph.then(forget, forget);
+      pending = download.graph;
+    }
+    try {
+      return await pending;
+    } catch (error) {
+      // No more map data can be obtained (offline, or the provider is down). The margin is a
+      // preference, not a requirement: if a graph we already hold contains the points
+      // themselves, play on it. Near the edge of the bundled map this is the difference
+      // between a game with fewer goal candidates and no game at all.
+      // A little slack past the box: roads that cross the boundary are stored whole, so a goal
+      // picked on one of them can sit just outside it and must still be routable.
+      const partial = [...this.bundled, ...this.areas].find((area) =>
+        points.every((p) => isWithin(area.bbox, p, EDGE_SLACK_M)),
+      );
+      if (!partial) throw error;
+      this.options.log?.('map margin unavailable, using the graph that contains the position', {
+        reason: error instanceof Error ? error.name : String(error),
+      });
+      return partial;
+    }
   }
 
   get loadedAreas(): number {
@@ -121,6 +146,12 @@ export class GraphStore {
       this.options.log?.('could not persist graph cache', { error: String(error) });
     }
   }
+}
+
+/** True when the point is inside the box or at most `slackM` metres outside it. */
+function isWithin(box: BBox, point: LatLon, slackM: number): boolean {
+  const reach = bboxAround(point, slackM);
+  return reach.north >= box.south && reach.south <= box.north && reach.east >= box.west && reach.west <= box.east;
 }
 
 function boundingBox(boxes: BBox[]): BBox {
